@@ -1,0 +1,103 @@
+# MinIO para o Coolify.
+#
+# Existe porque o Coolify removeu o MinIO da lista de Services. Aqui ele é
+# declarado como recurso do tipo "Docker Compose Empty".
+#
+# AS REGRAS DO TRAEFIK SÃO ESCRITAS À MÃO, de propósito. A variável mágica
+# `SERVICE_FQDN_MINIO_9000` foi testada no Coolify 4.1.2 e NÃO gerou rota: o
+# compose final saía sem nenhum label `traefik.*` e só com a rede do próprio
+# serviço. O sintoma engana — parece problema de certificado, mas o certificado
+# nunca chega a ser pedido, porque o Traefik só pede para domínio que tem rota.
+# Enquanto isso o proxy responde 404 em qualquer domínio apontado para cá.
+#
+# COMO USAR
+#   1. Coolify → + New → Docker Compose Empty
+#   2. cole este arquivo
+#   3. troque SEU-DOMINIO-STORAGE (2 ocorrências) e a senha
+#   4. DESMARQUE "Escape special characters in labels?" antes de salvar —
+#      as crases de Host(`...`) são sintaxe do Traefik; escapadas, a regra não
+#      casa com nada e você volta ao 404 sem entender por quê
+#   5. Save → Redeploy (recriar o container; reiniciar não reescreve label)
+#
+# A porta 9000 PRECISA de domínio público. Não é preferência: `src/lib/storage.ts`
+# assina as URLs que vão para o NAVEGADOR do cliente — o PUT da selfie e o
+# download da foto. Com hostname interno do Docker, essa URL não resolve fora do
+# servidor e nenhum cliente consegue enviar nem baixar nada.
+#
+# Público é o ENDEREÇO, não o conteúdo: o bucket segue privado e todo objeto
+# segue exigindo assinatura de validade curta.
+#
+# A porta 9001 é o console web. Ele lista e baixa TUDO, inclusive as selfies dos
+# clientes — dado pessoal sob a LGPD. Fica SEM rota aqui de propósito.
+
+services:
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+
+    environment:
+      - MINIO_ROOT_USER=iaphotos
+      - MINIO_ROOT_PASSWORD=TROQUE-ESTA-SENHA
+
+    # `expose` declara as portas para os containers da mesma rede, sem publicar
+    # nada no host. Quem vem de fora continua passando pelo proxy.
+    expose:
+      - '9000'
+      - '9001'
+
+    volumes:
+      - minio-data:/data
+
+    # Sem estar na rede do proxy, o Traefik não enxerga o container — e aí nem
+    # o label correto adianta. Se o proxy da sua instalação usar outro nome,
+    # ajuste aqui e no `traefik.docker.network` abaixo.
+    networks:
+      - coolify
+
+    # ATENCAO AOS NOMES. Todo identificador aqui — router, service, middleware —
+    # e GLOBAL no Traefik, nao escopado ao container. Se outro projeto no mesmo
+    # servidor declarar um service com o mesmo nome, o Traefik AGREGA os dois
+    # num unico balanceador e passa a dividir o trafego entre eles.
+    #
+    # Aconteceu de verdade em 2026-08-14: os nomes eram `minio-api`,
+    # `minio-http` e `redirect-to-https`, o MinIO de outro projeto usava os
+    # mesmos, e metade das requisicoes ia parar no storage errado. O sintoma era
+    # `InvalidAccessKeyId` alternando com sucesso, a cada requisicao, sem
+    # padrao aparente — e levou horas para achar, porque tudo o mais estava
+    # certo dos dois lados.
+    #
+    # Por isso o prefixo `souvenir`: se voce copiar este arquivo para outro
+    # produto, TROQUE o prefixo em todas as linhas.
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+
+      # HTTP: existe só para o desafio do Let's Encrypt e para redirecionar.
+      - traefik.http.routers.souvenir-storage-http.rule=Host(`SEU-DOMINIO-STORAGE`)
+      - traefik.http.routers.souvenir-storage-http.entryPoints=http
+      - traefik.http.routers.souvenir-storage-http.middlewares=souvenir-storage-https-redirect
+
+      # HTTPS: é por aqui que o cliente envia a selfie e baixa a foto.
+      - traefik.http.routers.souvenir-storage-https.rule=Host(`SEU-DOMINIO-STORAGE`)
+      - traefik.http.routers.souvenir-storage-https.entryPoints=https
+      - traefik.http.routers.souvenir-storage-https.tls=true
+      - traefik.http.routers.souvenir-storage-https.tls.certresolver=letsencrypt
+      - traefik.http.routers.souvenir-storage-https.service=souvenir-storage
+      - traefik.http.services.souvenir-storage.loadbalancer.server.port=9000
+
+      - traefik.http.middlewares.souvenir-storage-https-redirect.redirectscheme.scheme=https
+
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+volumes:
+  minio-data:
+
+networks:
+  coolify:
+    external: true

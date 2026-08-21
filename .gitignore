@@ -1,0 +1,21 @@
+node_modules/
+.next/
+dist/
+
+# Cache incremental do TypeScript: regenerado sozinho, so suja diff.
+tsconfig.tsbuildinfo
+out/
+
+.env
+.env.*
+!.env.example
+
+# Selfies e referências são dados pessoais/de terceiros — nunca versionar.
+spike/inputs/selfies/*
+spike/inputs/reference/*
+spike/inputs/scenes/*
+!spike/inputs/**/.gitkeep
+
+*.log
+.DS_Store
+Thumbs.db

@@ -1,0 +1,80 @@
+# Imagem do container "worker". Sem porta publica: ele so consome a fila.
+#
+# O worker e bundlado com esbuild num unico arquivo (dist/worker.mjs) e nao
+# aplica migracao — quem migra e o web, para haver um unico migrador.
+
+FROM node:24-alpine AS base
+RUN corepack enable
+WORKDIR /app
+
+# ---------- deps ----------
+FROM base AS deps
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# ---------- build ----------
+FROM base AS builder
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN pnpm exec prisma generate
+RUN pnpm run build:worker
+
+# Ver a nota longa no Dockerfile.web: no layout do pnpm o cliente gerado nao
+# fica em `node_modules/.prisma`, e `COPY --from` nao resolve o symlink.
+RUN mkdir -p /deps \
+  && cp -rL node_modules/.pnpm/@prisma+client@*/node_modules/.prisma /deps/.prisma
+
+# ---------- prod deps ----------
+# `--packages=external` deixa as dependencias fora do bundle, entao o runtime
+# ainda precisa delas — mas so as de producao.
+FROM base AS prod-deps
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile --prod
+
+# ---------- runner ----------
+FROM base AS runner
+ENV NODE_ENV=production
+
+# FONTES. Sem isto, a marca d'agua sai como uma fileira de quadradinhos em TODA
+# foto entregue — e gravada no arquivo, entao o cliente baixa assim.
+#
+# A faixa e um SVG com texto, renderizado pelo sharp. O `node:24-alpine` nao traz
+# fonte nenhuma: sem uma familia que resolva, cada caractere vira tofu. Nao da
+# erro, nao aparece no log, e so se descobre olhando a imagem.
+#
+# `ttf-dejavu` cobre todo o Latin-1, que e o que o texto em portugues precisa
+# ("fictícia", "inteligência"). `fontconfig` e quem faz o sharp achar a fonte.
+RUN apk add --no-cache ttf-dejavu fontconfig
+
+RUN addgroup -g 1001 -S nodejs && adduser -S worker -u 1001
+
+COPY --from=prod-deps --chown=worker:nodejs /app/node_modules ./node_modules
+COPY --from=builder --chown=worker:nodejs /app/dist ./dist
+COPY --chown=worker:nodejs package.json ./
+
+# Poe o cliente GERADO no lugar exato onde o @prisma/client procura por ele.
+#
+# `pnpm install --prod` nao roda `prisma generate` — o CLI e devDependency —
+# entao o `.prisma` que veio do prod-deps e o esqueleto, e o processo morre no
+# import com "did not initialize yet".
+#
+# Copiar para `node_modules/.prisma` NAO resolve: no layout do pnpm, o
+# @prisma/client vive em `.pnpm/@prisma+client@<versao>/node_modules/@prisma/`
+# e procura o cliente no `.prisma` IRMAO, dentro do mesmo `.pnpm`. O arquivo
+# ficava no disco e continuava invisivel — mesma classe de erro que o
+# `prisma-cli` no Dockerfile.web.
+#
+# O caminho tem a versao no meio, entao ele e resolvido por glob na hora do
+# build, e nao escrito a mao (que quebraria no proximo `pnpm update`).
+COPY --from=builder --chown=worker:nodejs /deps/.prisma /tmp/prisma-client
+RUN set -e; \
+  destino="$(ls -d node_modules/.pnpm/@prisma+client@*/node_modules)"; \
+  rm -rf "$destino/.prisma"; \
+  cp -r /tmp/prisma-client "$destino/.prisma"; \
+  rm -rf /tmp/prisma-client; \
+  chown -R worker:nodejs "$destino/.prisma"; \
+  echo "cliente Prisma instalado em $destino/.prisma"
+
+USER worker
+
+CMD ["node", "dist/worker.mjs"]

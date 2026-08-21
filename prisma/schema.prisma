@@ -1,0 +1,439 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum OrderStatus {
+  PENDING // pedido criado, pagamento ainda nao confirmado
+  PAID // webhook aprovou; job enfileirado
+  PROCESSING // worker pegou o job
+  READY // imagem pronta e entregue
+
+  /// Falha DEFINITIVA: reprocessar nao resolve (moderacao recusou o conteudo).
+  /// Dispara estorno automatico — o cliente nunca vai receber esta imagem.
+  FAILED
+
+  /// Falha OPERACIONAL: referencia ausente, storage fora, provedor fora.
+  /// Reprocessar RESOLVE, entao o dinheiro fica retido e o pedido espera acao
+  /// humana no /admin. Nao estorna sozinho de proposito: nesses casos o cliente
+  /// prefere a foto ao dinheiro, e estornar joga fora uma venda ja ganha por um
+  /// problema nosso de cinco minutos.
+  NEEDS_REVIEW
+
+  REFUNDED // estorno confirmado pelo Mercado Pago
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
+/// Enquadramento escolhido pelo cliente. Validado em 2026-08-14 (nota 5 nas
+/// tres opcoes) — veja spike/src/prompts.ts, variantes `enq-*`.
+///
+/// CHEST_UP e o padrao e o unico que existia antes: e o enquadramento do
+/// `closeup-v2`, que ganhou a Fase 0. Os outros dois so sao seguros porque o
+/// bloco de prompt deles carrega a trava "large enough to be unmistakably
+/// recognisable". Sem ela, medicao anterior mostrou o rosto do cliente
+/// ocupando ~150px e a nota caindo para 1 de 5.
+enum Framing {
+  CHEST_UP /// Peito para cima — padrao
+  HALF_BODY /// Meio corpo
+  CLOSE_SELFIE /// Selfie proxima
+}
+
+/// Clima da imagem. Validado na mesma rodada.
+///
+/// ATENCAO: o clima SOBREPOE a cena, nao soma com ela. Um pedido de "comicio"
+/// com clima DISCREET sai bem mais calmo do que a amostra de comicio que o
+/// cliente viu — sem bandeiras e sem a faixa. Foi medido, nao suposto.
+enum Mood {
+  NONE /// Deixa a cena falar sozinha — padrao
+  DISCREET /// Patriota discreta
+  FLAGS /// Evento com bandeiras
+  CROWD /// Encontro popular
+}
+
+enum AssetKind {
+  SELFIE // enviada pelo usuario — retencao curta (LGPD)
+  RESULT // imagem final em alta
+  PREVIEW // versao reduzida, usada na tela de resultado
+}
+
+/// Uma figura publica vendavel. Saiu do codigo (`src/content/figures/*.ts`)
+/// para o banco em 2026-08-13, para lancar um lider novo sem deploy.
+///
+/// O `enabled` continua sendo o kill switch: o risco aqui e juridico, nao
+/// tecnico, e se chegar uma notificacao extrajudicial o produto precisa sair do
+/// ar em segundos, pelo /admin.
+model Figure {
+  slug String @id
+
+  productName String
+  /// Como a figura e referida na copy. Nunca use o nome civil de uma pessoa
+  /// real sem checar o risco juridico.
+  figureLabel String
+
+  headline    String
+  subheadline String
+  ctaLabel    String
+
+  /// Preco da foto sozinha, quando esta figura e o produto principal.
+  priceCents       Int
+  /// Preco "de", so para ancoragem. Deve ter existido de verdade algum dia.
+  compareAtCents   Int?
+  /// Preco do combo: esta figura mais TODOS os adicionais oferecidos por ela.
+  /// Nulo quando ela nao oferece adicional nenhum.
+  bundlePriceCents Int?
+
+  /// Tem landing propria em /[slug]. Um lider que so existe como adicional
+  /// (Trump, Flavio) fica `false` e nao vira pagina de venda.
+  isPrimary Boolean @default(false)
+
+  /// A UNICA foto de exemplo do produto: chave no bucket, servida por
+  /// /api/hero/[figura].
+  ///
+  /// Era uma amostra por cena, exibidas num grid de tres na landing. O
+  /// concorrente que o cliente pediu para copiar mostra uma foto so, e a etapa
+  /// de escolher cena usa cards de texto com icone. Uma imagem por figura em vez
+  /// de cinco tambem e a diferenca entre lancar hoje e passar a semana gerando
+  /// amostra.
+  ///
+  /// Nulo enquanto ninguem subiu: a landing esconde a secao em vez de exibir
+  /// imagem quebrada.
+  heroImage String?
+
+  enabled Boolean @default(true)
+  /// Mensagem exibida na landing quando desligada.
+  notice  String?
+
+  /// LoRA treinada, quando a Fase 0 aprovar a rota B.
+  loraUrl     String?
+  loraTrigger String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scenes       Scene[]
+  references   FigureReference[]
+  bonuses      Bonus[]
+  testimonials Testimonial[]
+
+  /// Adicionais que ESTA figura oferece no checkout.
+  addonsOffered  FigureAddon[] @relation("principal")
+  /// Onde esta figura aparece como adicional de outra.
+  offeredAsAddon FigureAddon[] @relation("adicional")
+
+  items OrderItem[]
+}
+
+/// Quais figuras entram como order bump de qual. Bolsonaro oferece Trump e
+/// Flavio; eles proprios nao oferecem ninguem.
+model FigureAddon {
+  principalSlug String
+  adicionalSlug String
+
+  principal Figure @relation("principal", fields: [principalSlug], references: [slug], onDelete: Cascade)
+  adicional Figure @relation("adicional", fields: [adicionalSlug], references: [slug], onDelete: Cascade)
+
+  sortOrder Int @default(0)
+
+  @@id([principalSlug, adicionalSlug])
+  @@index([principalSlug, sortOrder])
+}
+
+/// Cenario da foto. Editavel pelo /admin por decisao de 2026-08-13.
+///
+/// ATENCAO: `setting` e o prompt que vai direto ao gerador e e o resultado mais
+/// caro da Fase 0. Um erro de digitacao aqui quebra a geracao em producao sem
+/// passar por revisao de codigo — teste a cena no /admin antes de publicar.
+model Scene {
+  id         String @id @default(cuid())
+  figureSlug String
+  figure     Figure @relation(fields: [figureSlug], references: [slug], onDelete: Cascade)
+
+  /// Identificador estavel usado na URL e gravado no pedido. Nao renomeie
+  /// depois de vender: pedidos antigos apontam para ele.
+  sceneId String
+  label   String
+  /// Frase curta exibida no card de escolha.
+  hint    String
+
+  /// Emoji exibido no card de escolha, no lugar da miniatura.
+  ///
+  /// Emoji e nao arquivo de icone de proposito: nao ha upload, nao ha objeto no
+  /// bucket para faltar, e o admin troca digitando. O card cai para um marcador
+  /// neutro quando esta vazio.
+  icon String?
+
+  aspectRatio String @default("3:4")
+
+  /// Descricao APENAS do cenario. As instrucoes de identidade sao montadas em
+  /// src/lib/prompts.ts — a cena nao deve saber como o modelo recebe as imagens.
+  setting String
+
+  /// Imagem de exemplo desta cena. OPCIONAL e hoje sem uso no funil.
+  ///
+  /// Ficou para tras quando a escolha de cena virou card de texto com icone: o
+  /// campo continua aqui porque as cinco cenas do patriota ja tem valor gravado,
+  /// e apagar coluna com dado e caminho sem volta. Se um dia voltar a fazer
+  /// sentido mostrar exemplo por cena, o dado esta preservado.
+  sampleImage String?
+
+  enabled   Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@unique([figureSlug, sceneId])
+  @@index([figureSlug, sortOrder])
+}
+
+/// Foto de referencia da figura, usada pelo gerador.
+///
+/// Os BYTES continuam no bucket privado — banco nao e lugar de binario, e a
+/// imagem e material de terceiro. O que mora aqui e o mapeamento: qual chave
+/// pertence a qual figura e em que ordem entra no request.
+model FigureReference {
+  id         String @id @default(cuid())
+  figureSlug String
+  figure     Figure @relation(fields: [figureSlug], references: [slug], onDelete: Cascade)
+
+  objectKey String @unique
+  mimeType  String @default("image/jpeg")
+  bytes     Int    @default(0)
+  sortOrder Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  @@index([figureSlug, sortOrder])
+}
+
+/// Item entregue junto com a foto.
+model Bonus {
+  id         String @id @default(cuid())
+  figureSlug String
+  figure     Figure @relation(fields: [figureSlug], references: [slug], onDelete: Cascade)
+
+  label       String
+  description String
+  objectKey   String
+  sortOrder   Int    @default(0)
+
+  @@index([figureSlug, sortOrder])
+}
+
+model Testimonial {
+  id         String @id @default(cuid())
+  figureSlug String
+  figure     Figure @relation(fields: [figureSlug], references: [slug], onDelete: Cascade)
+
+  name      String
+  city      String
+  text      String
+  /// Foto do rosto exibida na landing. Caminho em `public/` ou chave no bucket.
+  /// Nula = a landing desenha as iniciais num circulo, como fazia antes de o
+  /// campo existir. Nunca use foto de pessoa real que nao autorizou: o texto do
+  /// depoimento ja e ilustrativo e a foto tem que ser do mesmo tipo.
+  photo     String?
+  sortOrder Int    @default(0)
+
+  @@index([figureSlug, sortOrder])
+}
+
+model Order {
+  id String @id @default(cuid())
+
+  /// Capacidade de acesso ao pedido. O id e um cuid, sequencial o bastante para
+  /// ser adivinhado — sem este token um curioso leria o resultado (a FOTO) de
+  /// outra pessoa so incrementando a URL.
+  accessToken String @unique
+
+  /// Figura da landing por onde a pessoa entrou. Define a copy e o preco base.
+  /// O que vai ser GERADO esta em `items` — desde 2026-08-13 um pedido pode ter
+  /// mais de uma foto.
+  figureSlug String
+  /// Cena escolhida pela pessoa. Cada item tenta usar esta mesma cena na sua
+  /// figura; quando ela nao existe la, o item cai na primeira cena ativa.
+  sceneId    String
+
+  /// Enquadramento e clima valem para o PEDIDO inteiro, nao por item: a pessoa
+  /// escolhe uma vez e as tres fotos saem no mesmo estilo. Guardados aqui e nao
+  /// so no prompt para o pedido continuar reproduzivel depois — sem seed no
+  /// gpt-image-2, e o unico registro do que foi pedido.
+  framing Framing @default(CHEST_UP)
+  mood    Mood    @default(NONE)
+
+  status      OrderStatus @default(PENDING)
+  amountCents Int
+
+  /// Pedido criado pela bancada de teste do /admin, e nao por um cliente.
+  ///
+  /// Ele passa pelo MESMO caminho de geracao de um pedido de verdade — e o
+  /// unico jeito de o teste medir o que a producao faz. O que a marca muda e o
+  /// que vem depois: fica fora de toda metrica do painel (volume, taxa de
+  /// sucesso, custo por pedido) e nao aparece na lista de pedidos. Sem isso, uma
+  /// bateria de 12 combinacoes afundaria a taxa de sucesso do mes.
+  isTest Boolean @default(false)
+
+  /// Id do pagamento no Mercado Pago. Unico: e a chave de idempotencia do
+  /// webhook — o MP reenvia a mesma notificacao varias vezes, e sem esta
+  /// constraint um retry geraria (e cobraria) uma segunda imagem.
+  mpPaymentId String? @unique
+  mpStatus    String?
+  /// Metodo escolhido: "pix" ou "credit_card". Util para medir conversao.
+  mpMethod    String?
+
+  email String?
+  phone String?
+
+  /// Motivo legivel da falha, exibido no /admin.
+  failureReason String?
+
+  /// Marcadores de efeito colateral ja executado. Sao campos, e nao logica no
+  /// codigo, porque webhook e worker podem rodar a mesma etapa duas vezes: sem
+  /// isto o cliente recebe dois e-mails e o Meta conta duas compras.
+  notifiedAt DateTime?
+  metaSentAt DateTime?
+  refundedAt DateTime?
+
+  createdAt DateTime  @default(now())
+  paidAt    DateTime?
+  readyAt   DateTime?
+  updatedAt DateTime  @updatedAt
+
+  items   OrderItem[]
+  jobs    GenerationJob[]
+  assets  Asset[]
+  consent Consent?
+
+  @@index([status, createdAt])
+  @@index([figureSlug, createdAt])
+}
+
+/// Uma foto dentro do pedido. O pedido de R$19,90 tem um item; o de R$29,90
+/// tem tres (Bolsonaro, Trump e Flavio).
+///
+/// Cada item gera e falha SOZINHO, de proposito: se a foto do Trump quebrar, a
+/// do Bolsonaro ja entregue nao pode ser perdida junto. O status do pedido e
+/// derivado dos itens, nunca o contrario.
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  figureSlug String
+  figure     Figure @relation(fields: [figureSlug], references: [slug])
+
+  /// Cena resolvida para ESTA figura, no momento em que o pedido foi criado.
+  /// Guardada como texto, e nao so por relacao, para o pedido continuar legivel
+  /// se a cena for renomeada ou apagada no /admin depois da venda.
+  sceneId  String
+  scene    Scene?  @relation(fields: [sceneRef], references: [id])
+  sceneRef String?
+
+  /// Quanto ESTE item custou. A soma dos itens tem de bater com
+  /// `order.amountCents` — e o que permite auditar preco depois de a tabela
+  /// mudar. O primeiro item carrega o preco base; os adicionais podem ser 0
+  /// quando entram por combo.
+  priceCents Int @default(0)
+
+  status        JobStatus @default(QUEUED)
+  /// Motivo legivel da falha DESTE item, exibido no /admin.
+  failureReason String?
+
+  /// Ordem de exibicao na tela de resultado. O principal vem primeiro.
+  sortOrder Int @default(0)
+
+  createdAt DateTime  @default(now())
+  readyAt   DateTime?
+
+  jobs   GenerationJob[]
+  assets Asset[]
+
+  @@unique([orderId, figureSlug])
+  @@index([orderId, sortOrder])
+  @@index([status, createdAt])
+}
+
+model GenerationJob {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Item que este job gera. Opcional so por causa dos pedidos anteriores a
+  /// 2026-08-13, quando um pedido tinha uma foto so e nao havia item.
+  orderItemId String?
+  orderItem   OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  status   JobStatus @default(QUEUED)
+  attempts Int       @default(0)
+
+  /// Id do job no provedor (BFL), para rastrear uma geracao especifica no suporte.
+  providerJobId String?
+  /// Distingue moderacao de erro tecnico — a metrica que decide o produto.
+  errorCode     String?
+  errorDetail   String?
+
+  /// Custo real cobrado pelo provedor, em centavos de USD. Alimenta a margem no /admin.
+  costUsdCents Int @default(0)
+
+  startedAt  DateTime?
+  finishedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([orderId])
+  @@index([orderItemId])
+  @@index([status, createdAt])
+}
+
+model Asset {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Item a que este arquivo pertence. Nulo na SELFIE, que e uma so para o
+  /// pedido inteiro, e nos pedidos anteriores a 2026-08-13.
+  orderItemId String?
+  orderItem   OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  kind      AssetKind
+  /// Chave do objeto no MinIO. O bucket e privado; o acesso e sempre por URL assinada.
+  objectKey String    @unique
+  mimeType  String
+  bytes     Int
+  width     Int?
+  height    Int?
+
+  /// Quando o job de retencao pode apagar este objeto. Selfies expiram muito
+  /// antes dos resultados.
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId, kind])
+  @@index([expiresAt])
+}
+
+model Consent {
+  id      String @id @default(cuid())
+  orderId String @unique
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  /// Versao do texto aceito. Sem isto nao ha como provar O QUE a pessoa aceitou
+  /// quando os termos mudarem.
+  termsVersion String
+  ip           String
+  userAgent    String
+
+  acceptedAt DateTime @default(now())
+}

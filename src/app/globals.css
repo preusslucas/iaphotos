@@ -1,0 +1,183 @@
+@import 'tailwindcss';
+
+/*
+ * Tema fixo CLARO, verde-e-amarelo, sem prefers-color-scheme.
+ *
+ * Fixo pelo mesmo motivo de sempre: numa landing de tráfego pago a página tem
+ * que aparecer igual para todo mundo, e o produto não pode ser percebido de dois
+ * jeitos diferentes no meio da decisão de compra.
+ *
+ * Claro, e não escuro, porque o público é mais velho. Depois dos 50 o
+ * cristalino amarela e espalha mais luz, e texto claro sobre fundo escuro passa
+ * a "borrar" nas bordas — o efeito de halo. Fundo claro com texto escuro é o
+ * arranjo que envelhece melhor, e é também o que a maioria associa a site sério
+ * de compra.
+ *
+ * Contraste: todo par texto/fundo aqui passa em AA (4.5:1). `--muted` é o que
+ * mais costuma escapar — cinza bonito de mockup vira ilegível em celular no sol.
+ * Este está em ~7:1 sobre o branco, de propósito.
+ */
+:root {
+  --background: #f4f7f1;
+  --surface: #ffffff;
+  --surface-2: #eaf0e5;
+  --border: #ccd7c5;
+  --foreground: #131a11;
+  --muted: #4a5a48;
+
+  /* Verde da bandeira (#009c3b) escurecido até o texto branco passar em AA
+     sobre ele. O tom original é bonito e reprova: 3.6:1 com branco, contra os
+     4.5:1 exigidos. Este dá 5.2:1. */
+  --accent: #0a7d34;
+  --accent-hover: #086227;
+
+  /* Amarelo da bandeira. Serve de DESTAQUE, nunca de fundo para texto: nenhum
+     texto legível existe sobre ele a não ser quase-preto. */
+  --brasil: #ffd400;
+  --brasil-escuro: #8a6d00;
+
+  /* Verde escuro dos blocos cheios da landing (faixa da bandeira, bloco do CTA
+     final, medalhão da estrela). Vem do `--green-deep` da LP do Lovable, que lá
+     era oklch(0.32 0.09 156), convertido para hex — o resto do arquivo é hex e
+     misturar as duas notações no mesmo tema só rende confusão na hora de
+     comparar tons.
+
+     É um segundo verde, mais escuro que o `--accent`, e não um substituto: o
+     accent é o verde de BOTÃO, calibrado para texto branco em cima com folga
+     mínima de AA (5.2:1). Este é o verde de FUNDO GRANDE, onde a área pintada é
+     maior e o contraste precisa ser confortável, não só aprovado — dá 10:1 com
+     branco. Usar o accent nessas áreas deixa o bloco lavado; usar este nos
+     botões deixa o CTA sombrio e pesado. */
+  --green-deep: #0b4d28;
+
+  /*
+   * Degradê de fundo e sombras, vindos da LP do Lovable.
+   *
+   * Lá a página inteira tinha um degradê verde-para-amarelo e a coluna de
+   * 430px flutuava sobre ele com sombra. Não é enfeite: é o que separa o
+   * "cartão" do produto do fundo e faz a coluna parecer uma tela de aplicativo
+   * em vez de um texto solto no navegador. Em celular, onde a coluna ocupa a
+   * largura toda, o degradê quase não aparece — o efeito é para tablet e
+   * desktop, que é onde a landing sem ele fica visivelmente vazia dos lados.
+   *
+   * Os três tons são os `oklch` do Lovable convertidos: oklch(0.97 0.03 130),
+   * oklch(0.985 0.01 110) e oklch(0.96 0.05 100). Nenhum texto fica sobre eles
+   * diretamente — a coluna é `--surface` sólido — então não há par de contraste
+   * a defender aqui.
+   */
+  --gradient-page: linear-gradient(160deg, #eefae5 0%, #fafbf3 45%, #f9f3cd 100%);
+
+  /*
+   * O CTA da LP era um degradê. Aqui ele é montado com o `--accent` e o
+   * `--accent-hover` do próprio tema, e não com os verdes originais do Lovable
+   * (#007f41 → #005f2c): os nossos já foram calibrados para texto branco em
+   * cima passar em AA, e trocar por um par não conferido derrubaria o contraste
+   * do único botão que precisa ser lido.
+   */
+  --gradient-cta: linear-gradient(180deg, var(--accent), var(--accent-hover));
+
+  /* Âmbar e vermelho escurecidos: os tons de tema escuro (#f59e0b, #ef4444)
+     ficam ilegíveis como texto sobre fundo claro. */
+  --warn: #a35a06;
+  --danger: #b91c1c;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-brasil: var(--brasil);
+  --color-brasil-escuro: var(--brasil-escuro);
+  --color-green-deep: var(--green-deep);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
+
+  /*
+   * Sombras. Definidas aqui com o valor literal, e não em `:root` com um
+   * `var()` apontando para lá como o resto do arquivo: o namespace de sombra do
+   * Tailwind é `--shadow-*`, então o nome do token do tema e o nome da variável
+   * seriam o MESMO, e `--shadow-soft: var(--shadow-soft)` é uma definição
+   * circular que não resolve para nada. Definir uma vez aqui dá as duas coisas
+   * de que precisamos: as utilities `shadow-soft` / `shadow-card` e a variável
+   * `--shadow-soft` publicada em `:root` para quem quiser usá-la à mão.
+   *
+   * Verde escuro, e não cinza: sombra cinza sobre um fundo esverdeado fica
+   * suja. É a cor do `--green-deep` com alpha.
+   */
+  --shadow-soft: 0 10px 30px -12px rgb(11 77 40 / 0.35);
+  --shadow-card: 0 18px 45px -20px rgb(11 77 40 / 0.45);
+}
+
+/*
+ * 17px de base, e não os 16px do navegador.
+ *
+ * Tudo no Tailwind é rem, então isso aumenta a página inteira em ~6% de uma vez
+ * — texto, espaçamento e altura de botão — sem tocar em nenhum componente. Para
+ * um público mais velho é a mudança de acessibilidade mais barata que existe.
+ */
+html {
+  font-size: 17px;
+}
+
+body {
+  /* `background-color` primeiro e o degradê por cima: se a imagem falhar (ou
+     for desligada por alguma extensão de economia de dados) o fundo continua
+     sendo o `--background` sólido, e não branco puro com o texto no limite. */
+  background-color: var(--background);
+  background-image: var(--gradient-page);
+  /* O degradê pinta o BLOCO, e o body só é tão alto quanto o conteúdo. Sem
+     isto, uma página curta cortava o degradê no meio e o resto da janela ficava
+     na cor sólida — uma emenda visível. */
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Respeita quem desligou animação no sistema. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /*
+   * O spinner de espera é exceção, e não descuido.
+   *
+   * A regra acima o congelava: no Windows "reduzir movimento" vem ligado em
+   * muita máquina, e a pessoa ficava 60 segundos olhando um círculo parado
+   * depois de ter PAGADO. Não parece "sem animação", parece travado — e quem
+   * acha que travou recarrega a página ou abre suporte.
+   *
+   * `prefers-reduced-motion` existe contra movimento que causa desconforto
+   * vestibular: parallax, zoom, deslocamento grande na tela. Um círculo de
+   * 40px girando devagar no lugar não é esse caso. Mantemos o giro, mais lento,
+   * porque ele é a única evidência de que o pedido está vivo.
+   */
+  .spinner-espera {
+    animation-duration: 2s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+/*
+ * Utilitários do degradê. `@utility` (Tailwind 4) e não uma classe solta em
+ * `@layer`, para que `page-gradient` participe da mesma ordem de cascata das
+ * demais utilities e possa ser sobrescrita por um `bg-*` posterior.
+ */
+@utility page-gradient {
+  background-image: var(--gradient-page);
+}
+
+@utility cta-gradient {
+  background-image: var(--gradient-cta);
+}

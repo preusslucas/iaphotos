@@ -1,0 +1,15 @@
+node_modules
+.next
+dist
+.git
+.env
+.env.*
+!.env.example
+
+# O spike e ferramenta de decisao, nao roda em producao.
+spike
+
+*.md
+!README.md
+.vscode
+.idea

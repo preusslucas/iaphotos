@@ -1,0 +1,21 @@
+{
+  "name": "ia-photos-spike",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Fase 0 - harness de viabilidade da geracao de imagem (FLUX Kontext / fal.ai)",
+  "scripts": {
+    "run": "tsx src/run.ts",
+    "report": "tsx src/report.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "sharp": "^0.34.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

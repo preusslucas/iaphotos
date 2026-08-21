@@ -1,0 +1,73 @@
+# Infra de desenvolvimento local. Espelha o que o Coolify vai rodar em
+# producao, para que "funciona na minha maquina" signifique alguma coisa.
+#
+#   docker compose up -d
+#   pnpm db:migrate && pnpm dev        (web)
+#   pnpm dev:worker                     (worker, em outro terminal)
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iaphotos
+      POSTGRES_PASSWORD: iaphotos
+      POSTGRES_DB: iaphotos
+    ports:
+      # Faixa 554xx/563xx/590xx exclusiva deste projeto. As portas padrão já
+      # estão tomadas nesta máquina (Postgres nativo na 5432, outro projeto na
+      # 5433) e o sintoma do conflito é traiçoeiro: "authentication failed",
+      # porque a conexão chega no servidor errado em vez de falhar em conectar.
+      - '55432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U iaphotos']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly liga a persistencia: sem isso, um restart do container
+    # descarta jobs de pedidos ja pagos.
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '56379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: iaphotos
+      MINIO_ROOT_PASSWORD: iaphotos123
+    ports:
+      # Era 59000/59001 e o Docker nao conseguia subir: "an attempt was made to
+      # access a socket in a way forbidden by its access permissions". Nao e
+      # porta ocupada — o Windows RESERVA faixas inteiras para o Hyper-V, e
+      # 59000/59001 caem dentro de uma delas. Confira com:
+      #   netsh interface ipv4 show excludedportrange protocol=tcp
+      # 559xx fica fora das faixas reservadas, como 554xx e 563xx abaixo/acima.
+      - '55900:9000' # API S3
+      - '55901:9001' # console web
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:

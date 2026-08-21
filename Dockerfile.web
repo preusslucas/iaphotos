@@ -1,0 +1,91 @@
+# Imagem do container "web" (Next.js standalone).
+#
+# NEXT_PUBLIC_* sao inlinados no bundle durante o build, entao precisam existir
+# como build arg aqui — injeta-los so como env de runtime no Coolify nao teria
+# efeito nenhum no codigo do browser.
+
+FROM node:24-alpine AS base
+RUN corepack enable
+WORKDIR /app
+
+# ---------- deps ----------
+FROM base AS deps
+COPY package.json pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+
+# ---------- build ----------
+FROM base AS builder
+ARG NEXT_PUBLIC_ASSET_HOST=""
+ENV NEXT_PUBLIC_ASSET_HOST=$NEXT_PUBLIC_ASSET_HOST
+ARG NEXT_PUBLIC_HERO_VIDEO=""
+ENV NEXT_PUBLIC_HERO_VIDEO=$NEXT_PUBLIC_HERO_VIDEO
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+
+RUN pnpm exec prisma generate
+RUN pnpm exec next build
+
+# Instala o CLI do Prisma num diretorio proprio, com layout plano do npm.
+#
+# O CLIENTE nao entra aqui: ele ja vem na saida standalone, dentro de
+# `node_modules/.pnpm/@prisma+client@<versao>/node_modules/.prisma`, porque o
+# tracing do Next o segue. Copiar `@prisma` por cima ainda quebra o build — o
+# standalone tem `@prisma/client` como SYMLINK, e nao se copia diretorio sobre
+# symlink.
+#
+# O CLI e outra historia: e devDependency, o tracing nao o segue, e a migracao
+# roda no boot. Copia-lo do `node_modules` do pnpm NAO funciona: o pacote vem,
+# mas as dependencias dele ficam em `.pnpm/`, e o boot morre com
+# "Cannot find module '@prisma/engines'". Perseguir a arvore a mao nao termina.
+#
+# `npm install` num prefixo separado resolve a arvore inteira de uma vez, e o
+# diretorio proprio evita colidir com o `node_modules` do standalone. A versao
+# sai da que o pnpm ja instalou, para os dois nunca divergirem.
+RUN PRISMA_VERSION=$(node -p "require('/app/node_modules/prisma/package.json').version") \
+  && npm install --prefix /deps --no-audit --no-fund --loglevel=error "prisma@$PRISMA_VERSION"
+
+# ---------- runner ----------
+FROM base AS runner
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
+
+# O server.js do standalone escuta em `process.env.HOSTNAME || '0.0.0.0'`, e o
+# Docker preenche HOSTNAME com o ID DO CONTAINER. Sem esta linha o Next liga em
+# `a1b2c3d4:3000` e recusa conexao para `localhost:3000` — o que derruba o
+# healthcheck do Coolify, que checa por dentro. O trafego externo ate funciona,
+# porque o proxy conecta no IP do container: o deploy falha com a aplicacao
+# rodando, que e o pior tipo de falha para diagnosticar.
+ENV HOSTNAME=0.0.0.0
+
+RUN addgroup -g 1001 -S nodejs && adduser -S nextjs -u 1001
+
+# Saida standalone: traz apenas o server.js e as deps efetivamente usadas.
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# O standalone nao inclui o CLI do Prisma, e a migracao roda no boot. A pasta
+# `prisma/` tambem carrega o `seed.mjs`, que o entrypoint executa.
+COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
+# Diretorio SEPARADO do ./node_modules de propósito: mesclar com o do standalone
+# esbarraria no symlink de @prisma/client.
+#
+# O destino TEM de terminar em `node_modules`: o Node so procura dependencia em
+# pasta com esse nome exato. Copiar para `./prisma-cli` deixava o
+# @prisma/engines no disco e ainda assim invisivel para o require.
+COPY --from=builder --chown=nextjs:nodejs /deps/node_modules ./prisma-cli/node_modules
+
+COPY --chown=nextjs:nodejs docker/entrypoint-web.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
+
+USER nextjs
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+
+ENTRYPOINT ["./entrypoint.sh"]
+CMD ["node", "server.js"]
