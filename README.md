@@ -50,6 +50,18 @@ Console do MinIO em http://localhost:55901 (`iaphotos` / `iaphotos123`).
 | `pnpm db:migrate` | Cria e aplica migração em dev |
 | `pnpm db:deploy` | Aplica migrações pendentes (produção) |
 | `pnpm db:studio` | Prisma Studio |
+| `node prisma/copy-patriota.mjs` | Aplica a copy aprovada na figura `patriota`. Aceita `--dry-run` |
+
+**Sobre a copy e os ambientes.** A copy mora no BANCO, e cada ambiente tem o seu
+— o que você ajusta em dev não viaja no deploy junto com a imagem. O `seed.mjs`
+não cobre isso: ele é bootstrap e sai sem fazer nada se já houver figura
+cadastrada. Por isso existe o `copy-patriota.mjs`, que **sobrescreve** de
+propósito, numa figura só. Rode em produção depois de um deploy que mude copy:
+
+```
+docker exec -it <container-do-web> node prisma/copy-patriota.mjs --dry-run
+docker exec -it <container-do-web> node prisma/copy-patriota.mjs
+```
 
 ## Fluxo do pedido
 
@@ -97,6 +109,7 @@ O painel fica em `/admin` (senha em `ADMIN_PASSWORD`).
 | Mexer na tela de preço e combo | [src/components/funnel/OfertaStep.tsx](src/components/funnel/OfertaStep.tsx) |
 | Trocar cores, degradês ou sombras | [src/app/globals.css](src/app/globals.css) — leia os comentários de contraste antes |
 | Colocar as fotos dos depoimentos | [public/depoimentos/README.md](public/depoimentos/README.md) |
+| Mudar a copy da landing/oferta em produção | [prisma/copy-patriota.mjs](prisma/copy-patriota.mjs) — o `/admin` não cobre depoimento nem os campos novos |
 | Lançar outra figura | `/admin` → "+ Nova figura" |
 | Ajustar os prompts do gerador | [src/lib/prompts.ts](src/lib/prompts.ts) — meça no `spike/` antes |
 | Trocar o texto de consentimento | [src/content/terms.ts](src/content/terms.ts) — **incremente `TERMS_VERSION`** |
