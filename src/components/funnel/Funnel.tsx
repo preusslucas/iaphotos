@@ -101,12 +101,9 @@ interface Draft {
 export function Funnel({
   figure,
   inicio = 'landing',
-  fotosEntregues = 0,
 }: {
   figure: PublicFigure;
   inicio?: 'landing' | 'oferta';
-  /** Pedidos entregues desta figura. Alimenta a prova social da landing. */
-  fotosEntregues?: number;
 }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>(inicio);
@@ -480,22 +477,28 @@ export function Funnel({
     enquadramento: 'scene',
     clima: 'enquadramento',
     upload: 'clima',
+    // Voltar daqui atravessa a fronteira de ROTA (as telas anteriores vivem em
+    // `/[figura]`) e abandona um pedido já criado no servidor — a selfie subiu
+    // antes desta tela. O `Order` anterior fica PENDING para sempre e um novo é
+    // criado no próximo upload. Nada é cobrado e nada quebra, mas o /admin
+    // acumula pedidos órfãos. Está aqui porque é o desenho do cliente.
+    oferta: 'upload',
     checkout: 'oferta',
   };
 
   /**
-   * `oferta` é a única sem anterior, e de propósito: o pedido JÁ EXISTE quando
-   * ela é desenhada — a selfie subiu e o `Order` foi criado. Voltar para o
-   * upload criaria um segundo pedido e deixaria o primeiro pendurado em PENDING
-   * para sempre. Quem quiser trocar a foto recomeça pela landing, que limpa o
-   * rascunho de propósito.
-   *
-   * Note que voltar de `oferta` também atravessaria uma fronteira de ROTA — as
-   * telas anteriores vivem em `/[figura]` — e é o mesmo fato dito de outro
-   * jeito: a fronteira está onde está justamente porque não há volta dali.
+   * Voltar de `oferta` navega entre ROTAS: as telas anteriores vivem em
+   * `/[figura]` e esta em `/[figura]/oferta`. O `voltar()` abaixo trata disso.
    */
 
   function voltar() {
+    // Da oferta o anterior está na OUTRA rota, então é navegação e não troca de
+    // passo. `push` e não `replace`: a oferta é um lugar legítimo para o
+    // "avançar" do navegador trazer de volta.
+    if (step === 'oferta') {
+      router.push(`/${figure.slug}`);
+      return;
+    }
     const destino = ANTERIOR[step];
     if (!destino) return;
     // Limpa o erro junto: mensagem do passo anterior continuar na tela depois de
@@ -517,6 +520,10 @@ export function Funnel({
     enquadramento: 2,
     clima: 3,
     upload: 4,
+    // A oferta é o passo 6 DE 6 — é assim no desenho do cliente, e faz sentido
+    // para quem compra: escolher quanto pagar é a última decisão. O que vem
+    // depois (dados, QR, espera) é o pagamento acontecendo, não mais uma etapa
+    // a vencer. Por isso `checkout` em diante fica fora do contador.
     oferta: 5,
     checkout: 6,
     processing: 7,
@@ -524,6 +531,8 @@ export function Funnel({
     failed: 7,
     review: 7,
   };
+  /** O que o contador MOSTRA. A oferta é a última etapa aos olhos de quem compra. */
+  const passoExibido = step === 'oferta' ? TOTAL_PASSOS : stepIndex[step];
 
   return (
     <main className="mx-auto min-h-dvh w-full max-w-2xl px-5 pb-16">
@@ -536,22 +545,12 @@ export function Funnel({
           e contador de progresso ali só sugere que ainda falta etapa. */}
       {stepIndex[step] >= 1 && stepIndex[step] <= TOTAL_PASSOS && (
         <div className="py-6">
-          <StepDots
-            current={stepIndex[step]}
-            total={TOTAL_PASSOS}
-            // A oferta não tem para onde voltar (ver ANTERIOR): esconder o botão
-            // é melhor do que oferecer um que não faz nada.
-            onBack={step === 'oferta' ? undefined : voltar}
-          />
+          <StepDots current={passoExibido} total={TOTAL_PASSOS} onBack={voltar} />
         </div>
       )}
 
       {step === 'landing' && (
-        <Landing
-          figure={figure}
-          fotosEntregues={fotosEntregues}
-          onStart={() => setStep('scene')}
-        />
+        <Landing figure={figure} onStart={() => setStep('scene')} />
       )}
 
       {step === 'oferta' && (

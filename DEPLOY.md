@@ -85,7 +85,7 @@ no deploy. Não mude a ordem de subida achando que é detalhe.
 
 ### Build arg (não é variável de runtime)
 
-`NEXT_PUBLIC_ASSET_HOST` e `NEXT_PUBLIC_HERO_VIDEO` precisam ser marcadas como
+`NEXT_PUBLIC_ASSET_HOST` e as duas do VTurb precisam ser marcadas como
 **build variables** no Coolify. Variáveis `NEXT_PUBLIC_*` são inlinadas no
 bundle durante o `next build` — injetar só em runtime não tem efeito nenhum no
 código que roda no browser.
@@ -119,7 +119,8 @@ exatamente qual variável está errada.
 | `BREVO_FROM_EMAIL` / `BREVO_FROM_NAME` | — | ✅ | remetente do aviso de estorno |
 | `META_PIXEL_ID` / `META_CAPI_TOKEN` | ✅ | — | opcional, só para anúncio |
 | `NEXT_PUBLIC_ASSET_HOST` | build | — | **build arg**, não runtime |
-| `NEXT_PUBLIC_HERO_VIDEO` | build | — | **build arg**; vazia = landing usa a heroImage do /admin |
+| `NEXT_PUBLIC_VTURB_ACCOUNT_ID` | build | — | **build arg**; conta do VTurb na URL do player |
+| `NEXT_PUBLIC_VTURB_PLAYER_ID` | build | — | **build arg**; qualquer uma das duas vazia = landing usa a heroImage do /admin |
 
 O worker precisa de `MP_ACCESS_TOKEN` porque é ele quem estorna.
 

@@ -17,8 +17,13 @@ RUN pnpm install --frozen-lockfile
 FROM base AS builder
 ARG NEXT_PUBLIC_ASSET_HOST=""
 ENV NEXT_PUBLIC_ASSET_HOST=$NEXT_PUBLIC_ASSET_HOST
-ARG NEXT_PUBLIC_HERO_VIDEO=""
-ENV NEXT_PUBLIC_HERO_VIDEO=$NEXT_PUBLIC_HERO_VIDEO
+# VTurb: lidas no BUILD e embutidas no bundle, entao precisam ser build arg e
+# nao env de runtime. Configurar so no runtime nao quebra nada — apenas faz o
+# player nunca aparecer, que e o pior jeito de descobrir o erro.
+ARG NEXT_PUBLIC_VTURB_ACCOUNT_ID=""
+ENV NEXT_PUBLIC_VTURB_ACCOUNT_ID=$NEXT_PUBLIC_VTURB_ACCOUNT_ID
+ARG NEXT_PUBLIC_VTURB_PLAYER_ID=""
+ENV NEXT_PUBLIC_VTURB_PLAYER_ID=$NEXT_PUBLIC_VTURB_PLAYER_ID
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=deps /app/node_modules ./node_modules

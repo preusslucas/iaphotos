@@ -24,15 +24,17 @@ import { formatBRL } from '@/lib/format';
  *   "-75%" no JSX; aqui tudo sai de `priceCents` / `bundlePriceCents`, que vêm
  *   do /admin. Mudar o preço lá muda o desconto anunciado aqui, e não sobra um
  *   "-75%" fixo contradizendo a própria conta ao lado.
- * - O bloco de bônus mostra os bônus REAIS da figura (`figure.bonuses`). Na LP
- *   era uma frase genérica prometendo "um bônus especial" que não existia em
- *   lugar nenhum do sistema. Sem bônus cadastrado, o bloco não é desenhado.
- * - O selo do combo diz "MELHOR OFERTA" e não "Mais escolhido": o primeiro é
- *   verificável na própria tela (a conta está logo abaixo), o segundo é uma
- *   afirmação sobre o que outros compradores fizeram que ninguém mediu.
- * - A chamada patriota do rodapé do card ("APOIE A NOSSA LUTA") saiu. O funil é
- *   agnóstico de figura — a copy de cada uma vem do banco, e uma frase de
- *   campanha cravada no componente reapareceria em toda figura futura.
+ * - A caixa de bônus e a chamada "APOIE A NOSSA LUTA" do rodapé do card não
+ *   existem: o cliente pediu as duas fora.
+ * - A copy de CAMPANHA vem do banco (`priceNote`, `comboTitle`, `comboPitch`),
+ *   e não cravada aqui. "Em apoio ao nosso Capitão" e "enquanto a esquerda
+ *   treme" são frases de uma figura específica; no componente, reapareceriam em
+ *   toda figura futura. Sem elas preenchidas, a tela monta frases neutras a
+ *   partir dos preços e dos nomes dos adicionais.
+ * - O selo do combo diz "MAIS ESCOLHIDO" por decisão do cliente. Registrando:
+ *   é uma afirmação sobre o que outros compradores escolheram, e ninguém mediu
+ *   isso. "MELHOR OFERTA", que estava aqui antes, era verificável na própria
+ *   tela — a conta fica logo abaixo do selo.
  */
 export function OfertaStep({
   figure,
@@ -62,8 +64,8 @@ export function OfertaStep({
   return (
     // O card branco sobre o degradê do body, com sombra — a moldura da LP.
     <div className="rounded-2xl border border-border bg-surface p-5 shadow-card">
-      <h1 className="text-xl font-extrabold tracking-tight text-balance">
-        Para liberar a sua foto
+      <h1 className="text-xl font-extrabold tracking-tight">
+        Para liberar a sua foto com {figure.figureLabel}
       </h1>
 
       {/* OFERTA PRINCIPAL — o bloco de borda dourada da LP.
@@ -80,40 +82,11 @@ export function OfertaStep({
           <span className="text-sm font-semibold text-foreground">no Pix</span>
         </p>
 
-        {/* Ancoragem só quando existe preço "de" cadastrado. O campo é
-            `compareAtCents`, e o próprio schema avisa que ele precisa ter sido
-            praticado de verdade em algum momento. */}
-        {figure.compareAtCents != null && figure.compareAtCents > figure.priceCents && (
-          <p className="mt-1 text-sm text-muted line-through">
-            {formatBRL(figure.compareAtCents)}
-          </p>
-        )}
-
+        {/* Sem ancoragem de preço aqui: o desenho do cliente não a tem. O campo
+            `compareAtCents` continua no catálogo para quem quiser usá-lo. */}
         <p className="mt-2 text-xs leading-relaxed text-muted">
-          Pagamento único, sem assinatura. A foto fica sua para sempre.
+          {figure.priceNote ?? 'Pagamento único, sem assinatura. A foto fica sua para sempre.'}
         </p>
-
-        {/* BÔNUS — os que a figura tem de fato. */}
-        {figure.bonuses.length > 0 && (
-          <ul className="mt-4 space-y-2">
-            {figure.bonuses.map((b) => (
-              <li
-                key={b.label}
-                className="flex items-start gap-2 rounded-lg border border-brasil/50 bg-surface/70 px-3 py-3"
-              >
-                <span aria-hidden className="mt-0.5 shrink-0 text-brasil-escuro">
-                  <IconPresente />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-xs font-bold">{b.label}</span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-muted">
-                    {b.description}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
       {/* COMBO — o order bump. Clique no bloco inteiro, não numa caixinha de
@@ -129,7 +102,7 @@ export function OfertaStep({
           }`}
         >
           <span className="absolute -top-3 right-3 inline-flex items-center gap-1 rounded-md bg-brasil px-2 py-1 text-[0.68rem] font-extrabold tracking-wide text-brasil-escuro uppercase shadow-soft">
-            <IconEstrela /> Melhor oferta
+            <IconEstrela /> Mais escolhido
           </span>
 
           <span className="flex gap-3">
@@ -144,7 +117,8 @@ export function OfertaStep({
 
             <span className="min-w-0">
               <span className="block text-sm font-bold">
-                Leve {totalFotos === 2 ? 'as 2 fotos' : `as ${totalFotos} fotos`}
+                {figure.comboTitle ??
+                  (totalFotos === 2 ? 'Leve as 2 fotos' : `Leve as ${totalFotos} fotos`)}
               </span>
 
               <span className="mt-1.5 inline-block rounded-md bg-accent px-2 py-1 text-xs font-bold tracking-wide text-white uppercase">
@@ -152,8 +126,12 @@ export function OfertaStep({
               </span>
 
               <span className="mt-2 block text-xs leading-relaxed text-muted">
-                A <strong className="text-foreground">mesma selfie</strong> também com{' '}
-                {addons.join(' e ')}. Mesma cena, mesmo estilo, prontas junto com a primeira.
+                {figure.comboPitch ?? (
+                  <>
+                    A <strong className="text-foreground">mesma selfie</strong> também com{' '}
+                    {addons.join(' e ')}. Mesma cena, mesmo estilo, prontas junto com a primeira.
+                  </>
+                )}
               </span>
 
               {/* Só quando o combo é MESMO mais barato. Se alguém configurar um
@@ -162,7 +140,7 @@ export function OfertaStep({
               {descontoPct > 0 && (
                 <span className="mt-3 flex flex-wrap items-center gap-2">
                   <span className="rounded-md bg-danger px-2 py-1 text-[0.68rem] font-extrabold text-white uppercase">
-                    −{descontoPct}% nos adicionais
+                    −{descontoPct}% só agora
                   </span>
                   <span className="text-xs text-muted line-through">{formatBRL(avulso)}</span>
                   <span className="text-sm font-extrabold">+ {formatBRL(incremento)}</span>
@@ -176,40 +154,25 @@ export function OfertaStep({
       <button
         type="button"
         onClick={() => onContinuar(temBump && combo)}
-        className="cta-gradient mt-6 w-full rounded-xl px-6 py-4 text-base font-bold text-white shadow-soft transition hover:-translate-y-0.5 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
+        // `bg-green-deep` e não o `cta-gradient` da landing: é o verde escuro do
+        // desenho. Aqui ele funciona porque o botão é o único elemento forte da
+        // tela; na landing o mesmo tom competia com o bloco do CTA final.
+        className="mt-6 w-full rounded-xl bg-green-deep px-6 py-4 text-base font-bold text-white shadow-soft transition hover:-translate-y-0.5 hover:brightness-110 focus-visible:outline-2 focus-visible:outline-accent focus-visible:outline-offset-2"
       >
-        Pagar {formatBRL(total)} no Pix
+        Pagar {formatBRL(total)} no Pix e baixar minha foto
       </button>
 
       {/* Diz o que vem A SEGUIR. Sem isto o botão parece que já cobra, e quem
           não quer ser cobrado no clique não clica. */}
       <p className="mt-3 text-center text-xs leading-relaxed text-muted">
-        Na próxima tela você confirma o e-mail e vê o QR Code — a sua foto libera assim que o
-        pagamento confirmar.
+        Na próxima tela você vê o QR Code — sua foto libera assim que o pagamento confirmar.
       </p>
     </div>
   );
 }
 
-/* Ícones, inline pelo mesmo motivo da Landing: o `lucide-react` inteiro no
-   bundle por dois desenhos não se paga numa página que abre em 4G. */
-
-function IconPresente() {
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 24 24"
-      className="h-4 w-4"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7ZM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7Z" />
-    </svg>
-  );
-}
+/* Ícone inline pelo mesmo motivo da Landing: o `lucide-react` inteiro no bundle
+   por um desenho não se paga numa página que abre em 4G. */
 
 function IconEstrela() {
   return (

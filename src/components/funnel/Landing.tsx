@@ -1,7 +1,10 @@
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import type { ReactNode } from 'react';
 import type { PublicFigure, PublicScene } from '@/content';
 import { AiBadge } from '@/components/ui';
+import { SAMPLE_AI_BADGE } from '@/content/terms';
+import { HeroVturb, temVturb } from './HeroVturb';
 
 /**
  * Tela de venda. Um único CTA, repetido — sem menu, sem link que leve para
@@ -43,16 +46,7 @@ import { AiBadge } from '@/components/ui';
 /** A largura da coluna do desenho original: um cartão de telefone, centralizado. */
 const COLUNA = 'mx-auto w-full max-w-[430px]';
 
-export function Landing({
-  figure,
-  onStart,
-  fotosEntregues = 0,
-}: {
-  figure: PublicFigure;
-  onStart: () => void;
-  /** Pedidos em READY desta figura. Zero (ou pouco) esconde a prova social. */
-  fotosEntregues?: number;
-}) {
+export function Landing({ figure, onStart }: { figure: PublicFigure; onStart: () => void }) {
   const exemplos = figure.scenes.filter((s) => s.sampleImage).slice(0, 3);
 
   return (
@@ -68,7 +62,13 @@ export function Landing({
 
         {/* HERO */}
         <section className="px-6 pt-8">
-          <h1 className="text-[1.65rem] leading-[1.15] font-extrabold tracking-tight text-balance">
+          {/* Sem `text-balance`, de propósito.
+              Ele iguala o comprimento das linhas, e num título de duas linhas
+              isso encurta a primeira e deixa um vão à direita — foi o que
+              aconteceu com "Mostre de que | lado você está". Sem ele, a quebra é
+              gulosa: a primeira linha enche até onde cabe. É o comportamento do
+              desenho original, que também não usa balanceamento. */}
+          <h1 className="text-[1.65rem] leading-[1.15] font-extrabold tracking-tight">
             {figure.headline}
           </h1>
           <p className="mt-4 text-sm leading-relaxed text-pretty text-muted">
@@ -82,36 +82,47 @@ export function Landing({
           </div>
 
           <p className="mt-3 text-center text-xs text-muted">
-            Processo simples · Imagem personalizada · Pronta para compartilhar
+            Processo simples • Imagem personalizada • Pronta para compartilhar
           </p>
 
           <div className="mt-4 flex flex-wrap justify-center gap-2 text-xs text-muted">
             <Selo icon={<IconEscudoCheck />}>Dados protegidos</Selo>
-            <Selo icon={<IconSeloCheck />}>Pagamento único no Pix</Selo>
-            {/* Onde a LP dizia "Garantia de satisfação". Trocado por uma frase
-                que o código cumpre: falha definitiva estorna sozinha, em
-                `src/worker/refund.ts`. */}
-            <Selo icon={<IconSeloCheck />}>Reembolso automático se falhar</Selo>
+            {/* Texto definido pelo cliente. Registrando o que ele afirma: hoje o
+                sistema não tem garantia de satisfação — o que existe é estorno
+                automático quando a GERAÇÃO falha em definitivo
+                (`src/worker/refund.ts`). Nenhum caminho do código devolve
+                dinheiro a quem recebeu a foto e não gostou. Honrar isso é
+                decisão comercial, não de código. */}
+            <Selo icon={<IconSeloCheck />}>Garantia de satisfação</Selo>
           </div>
 
           {/*
-            Prova social contada, não afirmada.
+            Número definido pelo cliente, exibido como ele pediu.
 
-            A LP trazia "+12.487 fotos patriotas já criadas" cravado no JSX. O
-            número aqui vem do banco (pedidos em READY) e o bloco só aparece
-            depois de um volume que sustenta a frase: abaixo disso, "3 fotos já
-            criadas" faz mais mal do que silêncio.
+            Registrando o que ele é: uma afirmação de fato sobre o negócio que
+            não sai de lugar nenhum do sistema. O contador real existe e
+            funciona — `contaFotosEntregues` em `src/content/index.ts`, pedidos
+            em READY —, e é para lá que esta linha deve voltar quando o volume
+            justificar. Enquanto isso o valor fica em `PROVA_SOCIAL`, visível e
+            num lugar só, em vez de espalhado pelo JSX.
+
+            Vale saber, e a decisão é comercial: número de vendas não praticado
+            é publicidade enganosa (CDC art. 37, §1º) e a landing o exibe três
+            seções acima do bloco "Segurança e transparência".
           */}
-          {fotosEntregues >= MINIMO_PARA_CONTAR && (
-            <p className="mt-4 text-center text-xs text-muted">
-              <IconEstrela className="mr-1 inline h-3 w-3" />
-              <strong className="text-foreground">
-                {fotosEntregues.toLocaleString('pt-BR')}
-              </strong>{' '}
-              fotos já criadas
-            </p>
-          )}
+          <p className="mt-4 text-center text-xs text-muted">
+            <IconEstrela className="mr-1 inline h-3 w-3" />
+            <strong className="text-foreground">{PROVA_SOCIAL}</strong> fotos patriotas já criadas
+          </p>
 
+          {/* Texto definido pelo cliente, igual ao desenho.
+
+              Registrando a divergência: o vídeo do topo é uma GRAVAÇÃO DE TELA
+              do produto em uso — uma pessoa real e a interface real —, então
+              chamá-lo de fictício e gerado por IA não é verdade. O
+              `DEMO_DISCLAIMER` em `content/terms.ts` existe para este caso e
+              continua lá, pronto, se um dia a frase voltar a descrever a mídia
+              que está em cima dela. */}
           <p className="mt-4 text-center text-xs text-muted">
             Vídeo fictício gerado por inteligência artificial.
           </p>
@@ -139,7 +150,8 @@ export function Landing({
         <section className="px-6 py-8">
           <h2 className="text-lg font-bold">Como funciona</h2>
           <p className="mt-2 text-xs leading-relaxed text-muted">
-            O processo é curto, direto e feito para quem quer uma imagem pronta para postar.
+            O processo é curto, direto e feito para quem quer uma imagem patriota pronta para
+            postar.
           </p>
           <ol className="mt-5 space-y-3">
             {PASSOS.map((passo, i) => (
@@ -161,7 +173,7 @@ export function Landing({
           <section className="px-6 pb-8">
             <h2 className="text-lg font-bold">Quem já usou aprova</h2>
             <p className="mt-2 text-xs leading-relaxed text-muted">
-              Mensagens de quem criou e compartilhou a própria foto. As fotos de perfil são
+              Mensagens de patriotas que criaram e compartilharam a própria foto. Fotos
               ilustrativas.
             </p>
             <div className="mt-5 space-y-3">
@@ -173,7 +185,7 @@ export function Landing({
                   <header className="flex items-center gap-3">
                     <FotoDoDepoimento nome={d.name} foto={d.photo} />
                     <p className="min-w-0 flex-1 text-xs font-bold">
-                      {d.name} <span className="font-normal text-muted">· {d.city}</span>
+                      {d.name} <span className="text-[0.6rem] font-normal text-muted">{d.city}</span>
                     </p>
                     <Estrelas />
                   </header>
@@ -207,7 +219,7 @@ export function Landing({
         <section className="px-6">
           <div className="rounded-2xl bg-green-deep px-6 py-8 text-center">
             <h2 className="text-xl leading-snug font-extrabold text-white">
-              Pronto para criar a sua imagem?
+              Pronto para criar sua imagem com nosso capitão?
             </h2>
             <div className="mt-6">
               <CtaPrincipal onClick={onStart} label={figure.ctaLabel} variante="ouro" />
@@ -225,13 +237,16 @@ export function Landing({
 const PASSOS = ['Escolha o clima', 'Envie uma foto nítida', 'Libere sua imagem'];
 
 /**
- * Abaixo disto o contador some.
+ * Prova social exibida no topo. Valor definido pelo cliente.
  *
- * Prova social pequena é prova social ao contrário: "12 fotos já criadas" diz à
- * pessoa que quase ninguém comprou. Cem é onde o número passa a empurrar em vez
- * de puxar — e enquanto não chega lá, a seção inteira não é desenhada.
+ * Constante e não literal no meio do JSX para que exista UM lugar a mudar — e
+ * para que quem abrir este arquivo veja que é um número escrito à mão, e não
+ * algo que o sistema contou. O contador real é `contaFotosEntregues`.
  */
-const MINIMO_PARA_CONTAR = 100;
+const PROVA_SOCIAL = '+12.487';
+
+/** Caixa alta e miúdo, como no desenho: o selo identifica sem roubar a imagem. */
+const ESTILO_SELO = 'font-bold tracking-wide uppercase text-[0.62rem]';
 
 const SEGURANCA = [
   'Imagem gerada por IA',
@@ -242,20 +257,34 @@ const SEGURANCA = [
 ];
 
 /**
- * Vídeo no topo, quando houver.
+ * Mídia do topo: player do VTurb quando configurado, senão a `heroImage` do
+ * /admin.
  *
- * `NEXT_PUBLIC_HERO_VIDEO` é lida no BUILD e inlinada no bundle — é assim que
- * toda `NEXT_PUBLIC_*` funciona aqui, e no Coolify ela precisa ser build arg no
- * Dockerfile.web, não env de runtime (ver README).
+ * O `<video>` com arquivo em `public/` saiu daqui. Ele existia para tocar o
+ * `NEXT_PUBLIC_HERO_VIDEO`, e o vídeo passou a ser hospedado no VTurb — ver
+ * `HeroVturb.tsx` para o que a troca ganha e o que ela custa.
  *
- * `preload="none"` e `poster` de propósito: sem eles o navegador começa a
- * baixar o vídeo antes da imagem do topo, e o LCP da página que recebe tráfego
- * pago passa a depender do arquivo mais pesado dela.
+ * As envs do VTurb são lidas no BUILD e inlinadas no bundle, como toda
+ * `NEXT_PUBLIC_*` aqui. No Coolify elas precisam ser build arg no
+ * `Dockerfile.web`, e não env de runtime (ver README) — esquecer isso não
+ * quebra o build, só faz o player nunca aparecer em produção.
  */
-const HERO_VIDEO = process.env.NEXT_PUBLIC_HERO_VIDEO;
-
 function Hero({ figure }: { figure: PublicFigure }) {
-  if (!HERO_VIDEO && !figure.heroImage) return null;
+  /**
+   * `?vturb=off` desliga o player e cai na `heroImage`.
+   *
+   * Existe para separar, em um clique, "a página não hidrata" de "o player está
+   * atrapalhando a página". Sem isso a única forma de testar é editar o `.env` e
+   * reiniciar o servidor, e a resposta demora uma rodada inteira.
+   *
+   * `useSearchParams` e não `window.location`: precisa dar o MESMO resultado no
+   * servidor e no cliente, senão o próprio interruptor vira uma divergência de
+   * hidratação e passa a causar o problema que veio investigar.
+   */
+  const semPlayer = useSearchParams().get('vturb') === 'off';
+  const usarVturb = temVturb && !semPlayer;
+
+  if (!usarVturb && !figure.heroImage) return null;
 
   return (
     <div className="relative mx-auto mt-7 w-[72%]">
@@ -266,19 +295,10 @@ function Hero({ figure }: { figure: PublicFigure }) {
         <IconEstrela className="h-5 w-5" />
       </span>
 
-      <div className="overflow-hidden rounded-2xl border-4 border-brasil shadow-card">
-        {HERO_VIDEO ? (
-          <video
-            src={HERO_VIDEO}
-            poster={figure.heroImage}
-            autoPlay
-            muted
-            loop
-            playsInline
-            preload="none"
-            className="aspect-[3/4] w-full object-cover"
-          />
-        ) : (
+      {usarVturb ? (
+        <HeroVturb />
+      ) : (
+        <div className="overflow-hidden rounded-2xl border-4 border-brasil shadow-card">
           <Image
             src={figure.heroImage!}
             alt={`Exemplo fictício de foto com ${figure.figureLabel}`}
@@ -287,10 +307,24 @@ function Hero({ figure }: { figure: PublicFigure }) {
             priority
             className="aspect-[3/4] w-full object-cover"
           />
-        )}
-      </div>
+        </div>
+      )}
+      {/*
+        Selo sobre as duas mídias, como no desenho do cliente.
 
-      <AiBadge className="absolute bottom-2 left-2" />
+        `pointer-events-none` não é detalhe: o "clique para ouvir" do VTurb
+        (`smartAutoPlay` com `autoUnmute`) usa a superfície inteira do vídeo
+        como alvo, e um selo opaco por cima comeria justamente o clique que liga
+        o som. Sem eventos de ponteiro ele aparece e deixa o clique passar.
+
+        `z-10` para empatar com a estrela: o container do player tem `isolate`,
+        então tudo o que é interno dele fica confinado abaixo destes dois.
+      */}
+      <AiBadge
+        className={`pointer-events-none absolute bottom-2 left-2 z-10 ${ESTILO_SELO}`}
+        label={SAMPLE_AI_BADGE}
+      />
+
     </div>
   );
 }
@@ -354,10 +388,18 @@ function Exemplo({ figura, cena }: { figura: string; cena: PublicScene }) {
           loading="lazy"
           className="aspect-[4/5] w-full object-cover"
         />
-        <AiBadge className="absolute top-2 left-2" />
+        <AiBadge
+          className={`absolute top-2 left-2 ${ESTILO_SELO}`}
+          label={SAMPLE_AI_BADGE}
+        />
       </div>
       <figcaption className="mt-2">
-        <p className="text-xs font-semibold">{cena.label}</p>
+        {/* `sampleCaption` e não `label`: a legenda da vitrine é escrita para
+            quem ainda não comprou ("Exemplo 1: Selfie patriota"), e o `label` é
+            o nome que aparece no seletor de cenário para quem já está
+            escolhendo ("Selfie na rua"). Sem o campo próprio, mexer numa
+            estragava a outra. */}
+        <p className="text-xs font-semibold">{cena.sampleCaption ?? cena.label}</p>
         <p className="text-xs text-muted">Imagem fictícia para demonstrar o estilo.</p>
       </figcaption>
     </figure>

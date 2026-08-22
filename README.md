@@ -171,13 +171,28 @@ nota 5 em todas) antes de irem para a tela.
 
 ## Pendências antes de ligar tráfego
 
-- [ ] Trocar as imagens de exemplo — hoje são placeholders. Agora dá para enviar pelo `/admin`,
-      em Figuras → (a figura) → cada cena → "Enviar amostra". O carrossel de exemplos da landing
-      só aparece quando pelo menos uma cena tem amostra: sem elas a seção some inteira
-- [ ] Comprimir o vídeo do topo antes de apontar `NEXT_PUBLIC_HERO_VIDEO` para ele. O arquivo que
-      saiu do Lovable tem 47 MB — inaceitável para um público em 4G, e ele fica no caminho crítico
-      da única página que recebe tráfego pago. Alvo: 2–3 MB (H.264, 720p de largura, sem áudio,
-      6–8 s em loop)
+- [x] ~~Trocar as imagens de exemplo — hoje são placeholders.~~ Feito em 2026-08-21 para
+      `selfie-rua`, `comicio` e `feira`. `moto` e `estadio` tiveram a amostra **zerada** de
+      propósito: o que havia nelas era placeholder gerado, e o carrossel da landing mostra as três
+      primeiras cenas COM amostra — o placeholder do `moto` entraria na frente do exemplo real do
+      `feira`. Para reativá-las, envie a amostra pelo `/admin` em Figuras → (a figura) → cada cena
+      → "Enviar amostra". Faltam exemplos de motociata e de estádio
+- [x] ~~Configurar o VTurb.~~ Feito em 2026-08-21. O vídeo do topo deixou de ser arquivo do
+      projeto e virou player hospedado ([HeroVturb.tsx](src/components/funnel/HeroVturb.tsx)).
+      `NEXT_PUBLIC_VTURB_ACCOUNT_ID` e `NEXT_PUBLIC_VTURB_PLAYER_ID` são **build arg** no
+      `Dockerfile.web`: configurar só no runtime não dá erro, apenas faz o player nunca aparecer.
+      Vazias, o topo cai na `heroImage` do /admin e nada quebra
+- [ ] **Ajustar a "fake bar" do player no painel do VTurb.** Hoje ela está `active: true` com
+      `color: "#674EA7"` — uma faixa roxa de 10px que destoa do verde-e-amarelo e mostra progresso
+      que não corresponde ao vídeo. Trocar para o `--accent` (`#0a7d34`), ligar `inheritBaseColor`,
+      ou desativar. Não dá para corrigir por CSS: alcançar o interior do player significa depender
+      de nomes de classe internos deles, e o `isolate` do container existe justamente para separar
+      o nosso layout do deles
+- [ ] **Decidir se o vídeo do topo deve continuar sendo este.** Ele é um TUTORIAL gravado ("passo a
+      passo para criação da foto"): uma pessoa falando para a câmera e gravações de tela de
+      `foto.souvenirpatriota.com`. Duas coisas seguem de pé: o texto das capturas fica ilegível na
+      largura do player, e são 72 s. Por não ser mídia sintética, ele leva o `DEMO_DISCLAIMER` e
+      não o `AI_DISCLAIMER` — ver [src/content/terms.ts](src/content/terms.ts)
 - [ ] Cadastrar `trump` e `flavio`: cena, referência e ligar (elas nascem desligadas)
 - [ ] Credenciais reais do Mercado Pago nas **duas** aplicações e webhook homologado
 - [ ] Uma compra real de valor baixo, ponta a ponta, antes do primeiro anúncio

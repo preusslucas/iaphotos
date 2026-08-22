@@ -92,6 +92,20 @@ model Figure {
   /// Nulo quando ela nao oferece adicional nenhum.
   bundlePriceCents Int?
 
+  /// Frase sob o preco na tela de oferta. Copy da figura, nao do funil:
+  /// "Esse valor cobre so o nosso trabalho..." so faz sentido para o patriota.
+  /// Nula = a tela usa uma frase neutra sobre pagamento unico.
+  priceNote String?
+
+  /// Titulo do order bump, ex.: "Combo: Capitao, Trump e Flavio".
+  /// Nulo = montado a partir da quantidade de fotos ("Leve as 3 fotos").
+  comboTitle String?
+
+  /// Argumento do order bump, o paragrafo abaixo do titulo. Mesma razao dos
+  /// dois acima: e copy de campanha, e campanha e por figura.
+  /// Nulo = frase montada com os nomes dos adicionais.
+  comboPitch String?
+
   /// Tem landing propria em /[slug]. Um lider que so existe como adicional
   /// (Trump, Flavio) fica `false` e nao vira pagina de venda.
   isPrimary Boolean @default(false)
@@ -185,6 +199,12 @@ model Scene {
   /// e apagar coluna com dado e caminho sem volta. Se um dia voltar a fazer
   /// sentido mostrar exemplo por cena, o dado esta preservado.
   sampleImage String?
+
+  /// Legenda da amostra no carrossel da landing. Independente de `label`, que e
+  /// o nome usado no seletor de cenario do funil: a landing fala com quem ainda
+  /// nao comprou ("Exemplo 1: Selfie patriota") e o seletor fala com quem ja
+  /// esta escolhendo ("Selfie na rua"). Nula = cai no `label`.
+  sampleCaption String?
 
   enabled   Boolean @default(true)
   sortOrder Int     @default(0)

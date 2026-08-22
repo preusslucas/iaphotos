@@ -66,6 +66,9 @@ function montaFigura(row: FiguraComTudo): FigureConfig {
     priceCents: row.priceCents,
     compareAtCents: row.compareAtCents ?? undefined,
     bundlePriceCents: temAddon ? (row.bundlePriceCents ?? undefined) : undefined,
+    priceNote: row.priceNote ?? undefined,
+    comboTitle: row.comboTitle ?? undefined,
+    comboPitch: row.comboPitch ?? undefined,
     isPrimary: row.isPrimary,
     enabled: row.enabled,
     notice: row.notice ?? undefined,
@@ -78,6 +81,7 @@ function montaFigura(row: FiguraComTudo): FigureConfig {
       setting: s.setting,
       icon: s.icon ?? undefined,
       sampleImage: s.sampleImage ?? undefined,
+      sampleCaption: s.sampleCaption ?? undefined,
     })),
     testimonials: row.testimonials.map((t) => ({
       name: t.name,
@@ -175,6 +179,12 @@ export async function resolveSceneParaAddon(
  *
  * Sem cache, como o resto deste arquivo: e um COUNT indexado por figureSlug, e
  * a pagina ja e `force-dynamic` por causa do kill switch.
+ *
+ * SEM USO hoje: a landing exibe um numero fixo, definido pelo cliente
+ * (`PROVA_SOCIAL` em `components/funnel/Landing.tsx`). Esta funcao fica porque
+ * e para ca que aquela linha deve voltar quando o volume real justificar — e
+ * enquanto ela existe, a diferenca entre "contado" e "afirmado" fica visivel
+ * para quem for mexer.
  */
 export function contaFotosEntregues(figureSlug: string): Promise<number> {
   return prisma.order.count({

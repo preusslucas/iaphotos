@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import { Funnel } from '@/components/funnel/Funnel';
 import { LegalFooter } from '@/components/ui';
-import { contaFotosEntregues, getFigure, toPublicFigure } from '@/content';
+import { getFigure, toPublicFigure } from '@/content';
 
 /**
  * Rota da figura: /patriota, /outra-figura...
@@ -56,9 +56,5 @@ export default async function FiguraPage(props: PageProps<'/[figura]'>) {
     );
   }
 
-  // Depois do kill switch, e não antes: figura desligada não desenha landing
-  // nenhuma, e o COUNT seria uma ida ao banco para jogar fora.
-  const fotosEntregues = await contaFotosEntregues(figure.slug);
-
-  return <Funnel figure={toPublicFigure(figure)} fotosEntregues={fotosEntregues} />;
+  return <Funnel figure={toPublicFigure(figure)} />;
 }

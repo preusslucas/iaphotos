@@ -20,6 +20,12 @@ export interface SceneConfig {
    * icone — preservada porque as cenas do patriota ja tem valor gravado.
    */
   sampleImage?: string;
+  /**
+   * Legenda da amostra no carrossel da landing. Indefinida = cai no `label`.
+   * Existe separada porque a landing fala com quem ainda nao comprou e o
+   * seletor de cenario fala com quem ja esta escolhendo.
+   */
+  sampleCaption?: string;
 }
 
 export interface Testimonial {
@@ -72,6 +78,13 @@ export interface FigureConfig {
    * nao ha adicional — nesse caso a tela de pagamento nao mostra order bump.
    */
   bundlePriceCents?: number;
+
+  /** Frase sob o preco na tela de oferta. Indefinida = frase neutra. */
+  priceNote?: string;
+  /** Titulo do order bump. Indefinido = "Leve as N fotos". */
+  comboTitle?: string;
+  /** Paragrafo do order bump. Indefinido = montado com os nomes dos adicionais. */
+  comboPitch?: string;
 
   /** Tem landing propria. Figura que so existe como adicional fica `false`. */
   isPrimary: boolean;

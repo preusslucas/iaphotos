@@ -71,13 +71,24 @@ export function ErrorBanner({ message }: { message: string }) {
  * O aviso de imagem sintética acompanha TODA imagem exibida, não só a final.
  * É a promessa que a landing faz ao usuário e o que sustenta a defesa de que o
  * produto nunca se apresentou como registro de um encontro real.
+ *
+ * `label` existe para a mídia que NÃO é sintética — hoje, só o vídeo da hero,
+ * que é gravação de tela real e usa o `DEMO_DISCLAIMER`. O padrão continua
+ * sendo o aviso de IA, de propósito: quem esquecer de passar o rótulo acerta,
+ * e só quem afirma explicitamente que a mídia é real muda o texto.
  */
-export function AiBadge({ className = '' }: { className?: string }) {
+export function AiBadge({
+  className = '',
+  label = AI_DISCLAIMER,
+}: {
+  className?: string;
+  label?: string;
+}) {
   return (
     <span
       className={`inline-block rounded-md bg-black/70 px-2 py-1 text-[11px] leading-tight text-white/90 ${className}`}
     >
-      {AI_DISCLAIMER}
+      {label}
     </span>
   );
 }
