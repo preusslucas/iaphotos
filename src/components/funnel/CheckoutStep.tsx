@@ -37,6 +37,7 @@ export function CheckoutStep({
   onConferir,
   conferindo = false,
   avisoConferencia = null,
+  onRecomecar,
 }: {
   /** O que ela vai pagar, já com a decisão do combo aplicada na OfertaStep. */
   totalCents: number;
@@ -57,11 +58,24 @@ export function CheckoutStep({
   conferindo?: boolean;
   /** Resposta da última conferência, quando o pagamento ainda não caiu. */
   avisoConferencia?: string | null;
+  /**
+   * Abandona esta cobrança e volta para a landing, do zero.
+   *
+   * Existe porque a tela do Pix era um beco: quem errou o e-mail, escolheu a
+   * cena errada ou simplesmente mudou de ideia sobre o combo não tinha saída
+   * a não ser fechar a aba — e quem fecha a aba não volta. O botão de voltar
+   * do funil (`StepDots`) para no `checkout` de propósito, porque daqui para
+   * trás o pedido já existe no servidor; recomeçar é outra coisa: é assumir
+   * que este pedido morreu e criar um novo.
+   */
+  onRecomecar?: () => void;
 }) {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [copied, setCopied] = useState(false);
   const [erroFone, setErroFone] = useState<string | null>(null);
+  /** Segundo clique do "Recomeçar": confirma antes de largar a cobranca. */
+  const [confirmandoRecomeco, setConfirmandoRecomeco] = useState(false);
 
   /**
    * Celular brasileiro com DDD: 11 dígitos, e o nono sempre 9.
@@ -142,6 +156,42 @@ export function CheckoutStep({
         <p className="text-xs text-muted">
           Esta tela atualiza sozinha quando o pagamento for confirmado. Pode deixar aberta.
         </p>
+
+        {/* Saída da tela do Pix. Em DOIS cliques, e não em um: este botão apaga
+            o rascunho, e o rascunho guarda o `accessToken` — o único caminho
+            até a foto paga. Quem já pagou e clicasse aqui por engano perderia
+            o que comprou, sem tela de recuperação nenhuma. O aviso é escrito
+            para ser lido por quem está com o app do banco aberto na outra mão. */}
+        {onRecomecar && (
+          <div className="border-t border-border pt-6">
+            {confirmandoRecomeco ? (
+              <div className="space-y-3">
+                <p className="text-sm font-medium">Recomeçar do início?</p>
+                <p className="text-xs text-muted">
+                  Este código Pix deixa de valer e você escolhe tudo de novo.{' '}
+                  <strong>Se você já pagou, não recomece</strong> — fique nesta tela, a sua
+                  foto aparece aqui.
+                </p>
+                <div className="flex gap-2">
+                  <Button variant="ghost" onClick={() => setConfirmandoRecomeco(false)}>
+                    Continuar pagando
+                  </Button>
+                  <Button variant="ghost" onClick={onRecomecar}>
+                    Sim, recomeçar
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmandoRecomeco(true)}
+                className="text-sm text-muted underline underline-offset-4 hover:text-foreground"
+              >
+                Quero mudar alguma coisa — recomeçar do início
+              </button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

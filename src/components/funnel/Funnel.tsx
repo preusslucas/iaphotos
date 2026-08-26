@@ -636,6 +636,7 @@ export function Funnel({
               onConferir={() => void conferirPagamento()}
               conferindo={conferindo}
               avisoConferencia={avisoPix}
+              onRecomecar={startOver}
             />
           ) : (
             <div className="py-20">
