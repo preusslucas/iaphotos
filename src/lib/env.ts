@@ -45,10 +45,10 @@ const schema = z.object({
    *
    * NAO e `NEXT_PUBLIC_` de proposito: essa prefixo embutiria o numero no bundle
    * JS servido a todo visitante da landing. Aqui ele fica no servidor e so sai
-   * na resposta de status de um pedido RETIDO — ou seja, so chega a quem pagou e
-   * teve problema, que e a regra de negocio pedida.
+   * na resposta de status de um pedido — ou seja, so chega a quem ja criou um
+   * pedido (tem token valido), nunca a quem so esta navegando na landing.
    *
-   * Opcional: sem ele a tela de retencao aparece igual, apenas sem o botao.
+   * Opcional: sem ele as telas de Pix e retencao aparecem iguais, so sem o botao.
    */
   SUPPORT_WHATSAPP: z
     .string()

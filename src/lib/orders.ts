@@ -52,10 +52,12 @@ export function publicStatus(order: Order) {
     failureReason: needsReview ? null : order.failureReason,
     mpStatus: order.mpStatus,
 
-    // O numero do suporte SO sai daqui, e so neste estado. Colocar em
-    // NEXT_PUBLIC_ o embutiria no bundle de todo visitante; devolver sempre o
-    // exporia a quem so criou um pedido. Assim ele chega exatamente a quem
-    // pagou e teve problema.
-    supportWhatsapp: needsReview ? (env().SUPPORT_WHATSAPP ?? null) : null,
+    // O numero do suporte sai sempre que houver token valido — ou seja, so
+    // para quem ja tem um pedido criado, nunca no bundle publico (por isso
+    // NAO e NEXT_PUBLIC_). Antes so saia em NEEDS_REVIEW, mas gente travada na
+    // tela do Pix — que nao sabe se o QR esta errado, se o banco caiu, etc. —
+    // tambem precisa de uma saida, e e o estado com MAIS gente perdendo a
+    // venda por duvida.
+    supportWhatsapp: env().SUPPORT_WHATSAPP ?? null,
   };
 }

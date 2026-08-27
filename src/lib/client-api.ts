@@ -29,7 +29,7 @@ export interface OrderStatus {
   needsReview: boolean;
   failureReason: string | null;
   mpStatus: string | null;
-  /** Só vem preenchido quando `needsReview` — nunca fica no bundle público. */
+  /** Nunca fica no bundle público — só chega em resposta a um token válido. */
   supportWhatsapp: string | null;
 }
 

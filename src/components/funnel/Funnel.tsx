@@ -268,6 +268,11 @@ export function Funnel({
         const status = await getStatus(draft.orderId, draft.accessToken);
         if (cancelled) return;
 
+        // Guardado a cada tick, e não só em `needsReview`: quem ainda está com
+        // o QR na tela também precisa do botão, e é justamente aí que mais
+        // gente trava e desiste sem avisar por quê.
+        setSupportWhatsapp(status.supportWhatsapp ?? null);
+
         // `await`, e dentro do try. Antes era `return void finish(draft)`: a
         // promise era descartada e o `return` saía sem reagendar o tick. Uma
         // falha isolada do getResult — a corrida mais provável do fluxo, o
@@ -318,7 +323,6 @@ export function Funnel({
         // mesma tela volta a carregar o resultado do pedido que já foi pago.
         if (status.needsReview) {
           setFailureReason(status.failureReason);
-          setSupportWhatsapp(status.supportWhatsapp ?? null);
           setStep('review');
           return;
         }
@@ -637,6 +641,8 @@ export function Funnel({
               conferindo={conferindo}
               avisoConferencia={avisoPix}
               onRecomecar={startOver}
+              supportWhatsapp={supportWhatsapp}
+              orderId={draft?.orderId ?? null}
             />
           ) : (
             <div className="py-20">

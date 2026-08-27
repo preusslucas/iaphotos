@@ -38,6 +38,8 @@ export function CheckoutStep({
   conferindo = false,
   avisoConferencia = null,
   onRecomecar,
+  supportWhatsapp = null,
+  orderId = null,
 }: {
   /** O que ela vai pagar, já com a decisão do combo aplicada na OfertaStep. */
   totalCents: number;
@@ -69,6 +71,14 @@ export function CheckoutStep({
    * que este pedido morreu e criar um novo.
    */
   onRecomecar?: () => void;
+  /**
+   * Numero do suporte, so digitos com DDI. `null` quando `SUPPORT_WHATSAPP` não
+   * está configurado no servidor — nesse caso o botão simplesmente não aparece,
+   * em vez de virar um link quebrado.
+   */
+  supportWhatsapp?: string | null;
+  /** Vai no texto pré-preenchido do WhatsApp, para o suporte já saber qual pedido. */
+  orderId?: string | null;
 }) {
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -156,6 +166,25 @@ export function CheckoutStep({
         <p className="text-xs text-muted">
           Esta tela atualiza sozinha quando o pagamento for confirmado. Pode deixar aberta.
         </p>
+
+        {/* Saída para quem trava no Pix — QR que não abre, código que não cola,
+            pagamento que caiu e a tela não avisou. Sem isto o único caminho de
+            quem tem problema é fechar a aba, e quem fecha a aba não volta. */}
+        {supportWhatsapp && (
+          <div className="space-y-2 border-t border-border pt-6">
+            <p className="text-sm text-muted">Problema para pagar?</p>
+            <a
+              href={`https://wa.me/${supportWhatsapp}?text=${encodeURIComponent(
+                `Olá! Estou com dificuldade para pagar o Pix do pedido ${orderId ?? ''}.`,
+              )}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-block rounded-xl bg-accent px-6 py-3 font-bold text-white hover:bg-accent-hover"
+            >
+              Falar com o suporte no WhatsApp
+            </a>
+          </div>
+        )}
 
         {/* Saída da tela do Pix. Em DOIS cliques, e não em um: este botão apaga
             o rascunho, e o rascunho guarda o `accessToken` — o único caminho
